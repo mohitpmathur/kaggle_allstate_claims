@@ -16,31 +16,33 @@ if __name__ == "__main__":
     print ("test shape:", test.shape)
     print ("joined shape:", joined.shape)
 
-    # for column in list(train.select_dtypes(include=['object']).columns):
-    #     if set(train[column].unique()) != set(test[column].unique()):
-    #         #if train[column].nunique() != test[column].nunique():
-    #         print ("\n",column)
-    #         set_train = set(train[column].unique())
-    #         set_test = set(test[column].unique())
-    #         remove_train = set_train - set_test
-    #         remove_test = set_test - set_train
-    #         remove = remove_train.union(remove_test)
-    #         print (remove_train)
-    #         print (remove_test)
-    #         print (remove)
-    #         def filter_cat(x):
-    #             # Remove if exist in only either train or test
-    #             if x in remove:
-    #                 return np.nan
-    #             return x
+    print ("Starting to replace values with NaN if they exist in only train or test ...")
+    for column in list(train.select_dtypes(include=['object']).columns):
+        if set(train[column].unique()) != set(test[column].unique()):
+            #if train[column].nunique() != test[column].nunique():
+            # print ("\n",column)
+            set_train = set(train[column].unique())
+            set_test = set(test[column].unique())
+            remove_train = set_train - set_test
+            remove_test = set_test - set_train
+            remove = remove_train.union(remove_test)
+            # print (remove_train)
+            # print (remove_test)
+            # print (remove)
+            def filter_cat(x):
+                # Remove if exist in only either train or test
+                if x in remove:
+                    return np.nan
+                return x
             
-    #         joined[column] = joined[column].apply(lambda x: filter_cat(x), 1)
-    #         #print (joined[column].unique())
-    #     #joined[column] = pd.factorize(joined[column].values, sort=True)[0]
+            joined[column] = joined[column].apply(lambda x: filter_cat(x), 1)
+            #print (joined[column].unique())
+        joined[column] = pd.factorize(joined[column].values, sort=True)[0]
+    print ("Categorical column factorized")
     
-    # One-hot-encode categorical columns
-    print ("One-hot-encoding all categorical columns ...")
-    joined = pd.get_dummies(joined)
+    # # One-hot-encode categorical columns
+    # print ("One-hot-encoding all categorical columns ...")
+    # joined = pd.get_dummies(joined)
     print ("Shape of joined:", joined.shape)
 
     df_train = joined[:train.shape[0]]
