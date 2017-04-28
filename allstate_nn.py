@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 # import matplotlib as plt
 from keras.layers import Dense, Activation
+from keras.layers import Dropout
 from keras.models import Sequential
 from keras import metrics
 from keras.wrappers.scikit_learn import KerasRegressor
@@ -29,14 +30,17 @@ def custom_mae(y_true, y_pred):
     y_true = k.exp(y_true) - 200
     return k.mean(k.abs(y_true - y_pred))
 
-def baseline():
+def baseline(optimizer='Adamax', dropout_rate=0.0):
+    # Create model
+    # dropout_rate = 0 gave good results using Grid Search
     model = Sequential()
     model.add(Dense(130, input_dim=130, activation='relu'))
+    model.add(Dropout(dropout_rate))
     model.add(Dense(65, activation='relu'))
     model.add(Dense(1))
     model.compile(
         loss='mean_absolute_error', 
-        optimizer='rmsprop', 
+        optimizer=optimizer, 
         metrics=[custom_mae])
 
     # print (model.summary())
@@ -116,7 +120,7 @@ dimension = x_train.shape[1]
 
 
 #model = baseline()
-model = KerasRegressor(build_fn=baseline, epochs=2, batch_size=32, verbose=2)
+model = KerasRegressor(build_fn=baseline, epochs=25, batch_size=32, verbose=2)
 # history = model.fit(x_train, 
 #                     y_train, 
 #                     #epochs=2, 
@@ -125,7 +129,12 @@ model = KerasRegressor(build_fn=baseline, epochs=2, batch_size=32, verbose=2)
 #                     #verbose=2
 #                     )
 kfold = KFold(n_splits=3, random_state=42)
-clf = GridSearchCV(estimator=model, param_grid={}, cv=kfold)
+optimizer = ['RMSprop', 'Adam', 'Adamax']
+param_grid = {
+    #optimizer=optimizer,
+    #'dropout_rate':[0.0, 0.1, 0.2, 0.3]
+    }
+clf = GridSearchCV(estimator=model, param_grid=param_grid, scoring='neg_mean_absolute_error', cv=kfold)
 print ("Finished")
 start = time.time()
 results = clf.fit(x_train, y_train)
@@ -135,6 +144,14 @@ print ("Time to fit the model:",time.strftime("%H:%M:%S", time.gmtime(end-start)
 y_pred = np.exp(clf.predict(x_val)) - shift
 y_val_exp = np.exp(y_val) - shift
 print ("Mean Absolute Error:", mean_absolute_error(y_val_exp, y_pred))
+
+# summarize results
+print ("Best: %f using %s" % (results.best_score_, results.best_params_))
+means = results.cv_results_['mean_test_score']
+stds = results.cv_results_['std_test_score']
+params = results.cv_results_['params']
+for mean, stdev, param in zip(means, stds, params):
+    print ("%f (%f) with: %r" % (mean, stdev, param))
 
 print ("\nBest Estimator:", clf.best_estimator_.get_params())
 print ("\nResults:", results.cv_results_)
