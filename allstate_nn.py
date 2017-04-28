@@ -1,3 +1,47 @@
+'''
+This code uses dataset from the Kaggle 'Allstate Claims Severity' 
+competition 
+https://www.kaggle.com/c/allstate-claims-severity
+
+This is an implementation of deep neural network to predict the loss.
+
+Tuning them, I was able to get a MSA of 1135 on the validation set
+
+'''
+
+import time
+import numpy as np
+import pandas as pd
+# import matplotlib as plt
+from keras.layers import Dense, Activation
+from keras.models import Sequential
+from keras import metrics
+from keras.wrappers.scikit_learn import KerasRegressor
+import keras.backend as k
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import KFold
+from sklearn.metrics import mean_absolute_error
+
+def custom_mae(y_true, y_pred):
+    y_pred = k.exp(y_pred) - 200
+    y_true = k.exp(y_true) - 200
+    return k.mean(k.abs(y_true - y_pred))
+
+def baseline():
+    model = Sequential()
+    model.add(Dense(130, input_dim=130, activation='relu'))
+    model.add(Dense(65, activation='relu'))
+    model.add(Dense(1))
+    model.compile(
+        loss='mean_absolute_error', 
+        optimizer='rmsprop', 
+        metrics=[custom_mae])
+
+    # print (model.summary())
+    return model
+
 train = pd.read_csv('data/train.csv')
 test = pd.read_csv('data/test.csv')
 test['loss'] = np.nan
@@ -70,24 +114,28 @@ print ("Shape of y_val: {}; type(y_val): {}".format(
 
 dimension = x_train.shape[1]
 
-model = Sequential()
-model.add(Dense(130, input_dim=dimension, activation='relu'))
-model.add(Dense(130, activation='relu'))
-model.add(Dense(1))
-model.compile(
-    loss='mean_absolute_error', 
-    optimizer='adam', 
-    metrics=[metrics.mae])
 
-print (model.summary())
+#model = baseline()
+model = KerasRegressor(build_fn=baseline, epochs=2, batch_size=32, verbose=2)
+# history = model.fit(x_train, 
+#                     y_train, 
+#                     #epochs=2, 
+#                     #batch_size=32,
+#                     #validation_data=(x_val, y_val),
+#                     #verbose=2
+#                     )
+kfold = KFold(n_splits=3, random_state=42)
+clf = GridSearchCV(estimator=model, param_grid={}, cv=kfold)
+print ("Finished")
+start = time.time()
+results = clf.fit(x_train, y_train)
+end = time.time()
+print ("Time to fit the model:",time.strftime("%H:%M:%S", time.gmtime(end-start)))
 
-history = model.fit(x_train, 
-                    y_train, 
-                    epochs=2, 
-                    batch_size=32,
-                    validation_data=(x_val, y_val),
-                    verbose=1)
-
-y_pred = np.exp(model.predict(x_val)) - shift
+y_pred = np.exp(clf.predict(x_val)) - shift
 y_val_exp = np.exp(y_val) - shift
 print ("Mean Absolute Error:", mean_absolute_error(y_val_exp, y_pred))
+
+print ("\nBest Estimator:", clf.best_estimator_.get_params())
+print ("\nResults:", results.cv_results_)
+print ("Model Summary:", clf.best_estimator_.build_fn().summary())
